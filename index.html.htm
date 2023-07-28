@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Page Title</title>
+</head>
+
+<script src='https://d3js.org/d3.v5.min.js'>
+
+</script>
+<script src="https://rawgit.com/susielu/d3-annotation/master/d3-annotation.min.js"></script>
+<body>
+
+
+
+<input type ="radio" id="Map" name="plotSelect" value=4>
+<label for ="Map" id="mapLabel">Map</label><br>
+<input type ="radio" id="overallPlot" name="plotSelect" value=5>
+<label for ="overallPlot" id="opLabel">Overall Average</label><br>
+<input type ="radio" id="timeHistory" name="plotSelect" value=2>
+<label for ="timeHistory" id="thLabel">Time History</label><br>
+<input type ="radio" id="latitudePlot" name="plotSelect" value=6>
+<label for ="latitudePlot" id="ltLabel">Latitude</label><br>
+ <p>
+        <button id="radioBtn">Select Plot</button>
+ </p>
+
+<label id="dataRangeLabel">Select Data Range (1950-2023):</label>
+<label id="startYearLabel" for="startYear"> Start Year:</label>
+<input type="number" id="startYear" name="startYear"
+       min="1950" max="2023" value="1970">
+<label id="endYearLabel" for="endYear"> End Year:</label>
+<input type="number" id="endYear" name="endYear"
+       min="1950" max="2023" value="2023">
+
+
+<div id="tooltip"></div>
+
+<p>
+<button onclick ="nextSlide()" id="nextButton" >Next</button>
+</p>
+
+<svg width=1100 height=700>
+
+
+<style> rect {stroke: black;} </style>
+</svg>
+<script>
+
+var clickCounter = 0;
+
+
+var nextButtonOn = document.getElementById("nextButton");
+nextButtonOn.style.display = "block";
+nextButtonOn.style.position = "absolute";
+nextButtonOn.style.left = width/2-35+'px';
+nextButtonOn.style.top = height + marginy/1.5 - 35 +'px';
+
+
+var dataRangeText = document.getElementById('dataRangeLabel');
+  if (dataRangeText.style.display === "none") {
+    dataRangeText.style.display = "block";
+  } else {
+    dataRangeText.style.display = "none";
+  }
+
+
+
+
+var startYearBox = document.getElementById('startYear');
+  if (startYearBox.style.display === "none") {
+    startYearBox.style.display = "block";
+  } else {
+    startYearBox.style.display = "none";
+  }
+
+
+var startYearText = document.getElementById('startYearLabel');
+
+  if (startYearText.style.display === "none") {
+    startYearText.style.display = "block";
+  } else {
+    startYearText.style.display = "none";
+  }
+
+var endYearBox = document.getElementById('endYear');
+  if (endYearBox.style.display === "none") {
+    endYearBox.style.display = "block";
+  } else {
+    endYearBox.style.display = "none";
+  }
+
+
+var endYearText = document.getElementById('endYearLabel');
+
+  if (endYearText.style.display === "none") {
+    endYearText.style.display = "block";
+  } else {
+    endYearText.style.display = "none";
+  }
+
+
+
+
+//hide buttons until later
+var mapBtn = document.getElementById('Map');
+var mapTxt = document.getElementById('mapLabel');
+mapBtn.style.display = "none";
+mapTxt.style.display = "none";
+var opBtn = document.getElementById('overallPlot');
+var opTxt = document.getElementById('opLabel');
+opBtn.style.display = "none";
+opTxt.style.display = "none";
+var thBtn = document.getElementById('timeHistory');
+var thTxt = document.getElementById('thLabel');
+thBtn.style.display = "none";
+thTxt.style.display = "none";
+var ltBtn = document.getElementById('latitudePlot');
+var ltTxt = document.getElementById('ltLabel');
+ltBtn.style.display = "none";
+ltTxt.style.display = "none";
+
+var radioButtonOff = document.getElementById('radioBtn');
+radioBtn.style.display = "none";
+
+const btn = document.querySelector('#radioBtn'); 
+const radioButtons = document.querySelectorAll('input[name="plotSelect"]');
+        btn.addEventListener("click", () => {
+            let selectedSize;
+            for (const radioButton of radioButtons) {
+                if (radioButton.checked) {
+                    plotNumber = radioButton.value;
+		    plotHandler()
+                    break;
+                }
+            }
+});
+
+
+async function startUp() {
+var startupTooltip = d3.select('#tooltip').append("div")
+	startupTooltip.style("position","absolute")
+	.style("visibility","visible")
+	.style("top",height/2-25+"px")
+	.style("left",width/2-200+"px")
+	.style("width",400+"px")
+	.style("background-color", "white")
+    	.style("border", "solid")
+    	.style("border-width", "1px")
+    	.style("border-radius", "5px")
+    	.style("padding", "10px")
+	.html("<p>How cold does it really get in Alaska? How much does that temperature vary around the state? This map shows 8 weather stations I've selected around the state, which compare their minimum temperatures in January over the past half-century.  The results may surprise you! Please click on this message to continue, and press the Next button to continue the presentation. Please allow a few seconds after clicking the next button to give the data time to load. </p>");
+	startupTooltip.on("click", function(){return startupTooltip.style("visibility", "hidden");});
+
+var nextButtonOn = document.getElementById("nextButton");
+nextButtonOn.style.display = "block";
+nextButtonOn.style.position = "absolute";
+nextButtonOn.style.left = width/2-35+'px';
+nextButtonOn.style.top = height + marginy + 35 +'px';
+
+}
+
+
+
+var plotNumber = 0;
+var color = ["red","midnightblue","darkorange","deeppink","forestgreen","darkviolet","mediumspringgreen","steelblue"]
+var minYear = 1970;
+var maxYear = 2023;
+var width = 900;
+var height = 600;
+var marginx = 50;
+var marginy = 100;
+
+
+
+
+
+
+
+
+//////////////
+
+
+
+anchorageCSV = 'https://raw.githubusercontent.com/jasonjennings37/AlaskaTemperatures/main/AnchorageData.csv';
+bethelCSV = 'https://raw.githubusercontent.com/jasonjennings37/AlaskaTemperatures/main/BethelData.csv';
+fairbanksCSV = 'https://raw.githubusercontent.com/jasonjennings37/AlaskaTemperatures/main/FairbanksData.csv';
+helmutCSV = 'https://raw.githubusercontent.com/jasonjennings37/AlaskaTemperatures/main/HelmutData.csv';
+juneauCSV = 'https://raw.githubusercontent.com/jasonjennings37/AlaskaTemperatures/main/JuneauData.csv';
+nomeCSV = 'https://raw.githubusercontent.com/jasonjennings37/AlaskaTemperatures/main/NomeData.csv';
+salmonCSV = 'https://raw.githubusercontent.com/jasonjennings37/AlaskaTemperatures/main/SalmonTroutData.csv';
+umiatCSV = 'https://raw.githubusercontent.com/jasonjennings37/AlaskaTemperatures/main/UMIATData.csv';
+
+mapCSV = 'https://raw.githubusercontent.com/jasonjennings37/AlaskaTemperatures/main/us-state-boundaries.csv'
+
+anchorageLatLon = [61.16916,-150.02771];
+bethelLatLon = [60.78497,-161.82931];
+fairbanksLatLon = [64.8172,-147.8739];
+helmutLatLon = [67.7414, -144.1225];
+juneauLatLon = [58.354, -134.55606];
+nomeLatLon = [64.5072, -165.4347];
+salmonLatLon = [66.8125, -141.62];
+umiatLatLon = [69.37,-152.1361];
+
+startUp()
+
+async function getMapData()
+{
+
+	const mapText = await d3.text(mapCSV)
+	const mapData = await d3.csvParseRows(mapText)
+	return mapData
+}
+
+async function getMapLatLon()
+{
+
+	testData = await getMapData();
+
+	mapLatLon = []
+	for(var i=0;i<testData[0].length;i=i+2){
+		mapLatLon.push({"mapLat": +testData[0][i+1], "mapLon": +testData[0][i]});
+	};
+
+	return mapLatLon
+
+return mapLatLon
+
+}
+
+
+
+//////
+async function getMinTempArray(csvName)
+{
+	var minTemp = [];
+
+
+	const fullData = await d3.csv(csvName,
+		 function(data) {
+		minTemp.push(+data.TMIN); //push all min temperature values into minTempArray
+	});
+	return minTemp
+}
+///////
+
+async function mapPlot()
+{
+	ydomain = [72, 52]; // latitude
+	xdomain = [-180, -132]
+	xrange = [marginx+100,width*.75-marginx+100]; //pixels
+	yrange = [marginy-50,height*1.1 - marginy-50]
+
+	latitudes = [anchorageLatLon[0],bethelLatLon[0],fairbanksLatLon[0],helmutLatLon[0],juneauLatLon[0],
+	nomeLatLon[0],salmonLatLon[0],umiatLatLon[0]];
+
+	longitudes = [anchorageLatLon[1],bethelLatLon[1],fairbanksLatLon[1],helmutLatLon[1],juneauLatLon[1],
+	nomeLatLon[1],salmonLatLon[1],umiatLatLon[1]];
+
+	var labels = ['Anchorage','Bethel','Fairbanks','Helmut Mtn.','Juneau','Nome','Salmon Trout','Umiat'];
+	stationLocations = []
+	for (i=0;i<latitudes.length;i++)
+	{
+		stationLocations.push({"Latitude": latitudes[i], "Longitude": longitudes[i], "Location": labels[i]});
+	}
+
+	var xs0 = d3.scaleLinear().domain(xdomain).range(xrange);
+
+	var ys0 = d3.scaleLinear().domain(ydomain).range(yrange);
+
+	var data = await getMapLatLon();
+
+	d3.selectAll("g.xaxis").style("opacity",0)
+	d3.selectAll("g.yaxis").style("opacity",0)
+	d3.selectAll("circle").remove()
+	d3.selectAll("text").remove()
+	d3.selectAll("path").remove()
+
+	var dots = d3.select("svg").selectAll("circle").data(data).enter().append("circle")
+	.attr("cx",function(d) {return xs0(d.mapLon);})
+	.attr("cy",function(d) {return ys0(d.mapLat);})
+	.attr("r",2)
+	.attr("fill", "lightblue")
+	console.log(stationLocations)
+	d3.select("svg").selectAll("rect").data(stationLocations).join("rect")
+	.attr("x",function(d,i) {return xs0(d.Longitude);})
+	.attr("y",function(d,i) {return ys0(d.Latitude);})
+	.attr("fill", function(d,i) {return color[i];})
+	.attr("width",10)
+	.attr("height",10);
+
+	d3.select("svg").selectAll("text").data(stationLocations).enter().append("g").append("text").attr("class","note")
+	.attr("x",function(d,i) {return xs0(d.Longitude)-20;})
+	.attr("y",function(d,i) {return ys0(d.Latitude)-5;})
+	.text(function(d,i) {return d.Location;}) 
+
+    //Create border
+    var svg = d3.select("svg")
+             .append("rect")
+             .attr("style", "outline: thin solid black;")   //This will do the job
+	     .attr("x",marginx+100)
+	     .attr("y",marginy-50)
+             .attr("fill","none")
+             .attr("width", width*.75-marginx)
+             .attr("height", height - marginy);
+
+	d3.select("svg").append("g").append("text").attr("class","title")
+        .attr("x", (width/2))             
+        .attr("y", marginy/4)
+        .attr("text-anchor", "middle")  
+        .style("font-size", "20px") 
+        .style("text-decoration", "underline")  
+        .text("Weather Station Map");
+
+
+	if(plotNumber == 4)
+	{
+	let data = await createData();
+	var format = d3.format(".1f")
+	d3.select("svg").selectAll("text").exit().data(data).join("text").attr("class","barValues")
+	.attr("x", function(d,i) {return xs0(d.Longitude)-20;})             
+        .attr("y", function(d,i) {return ys0(d.Latitude)-5;})
+	.text(function(d,i) {return d.Location + ":" + format(d.Temperature) + "°" ;}) 
+
+
+	var tooltip = d3.select("#tooltip")
+	}
+
+}
+///////
+async function getDateArray(csvName)
+{
+var date = [];
+
+const fullData = await d3.csv(csvName,
+	 function(data) {
+	date.push(data.Date); //push all dates into an array	
+	});
+return date
+}
+////////
+
+///////
+function getJanuaryAverages(minTempArray,dateArray)
+{
+	//Splitting up the array and taking averages
+	let janMinTempArray = [];
+	for (var i = 0; i <= maxYear - minYear; i++) {
+		janMinTempArray[i] = []; // filling array with arrays for each year we need to use.
+	}
+
+	for (let i = 0; i < dateArray.length; i++) {
+		
+		
+		if(dateArray[i].slice(0,2) == "01") { //if the month is January
+			var year = Number(dateArray[i].slice(6,10))
+			if (year >= minYear && year <= maxYear) {  
+				var yearIndex = year - minYear;
+				var dayIndex = Number(dateArray[i].slice(3,5)) - 1
+				janMinTempArray[yearIndex][dayIndex] = minTempArray[i];
+			}
+		}
+	
+		//handling 2nd other data format where year is listed first
+
+		else if ((dateArray[i].slice(0,2) == "19" && dateArray[i].slice(5,7) == "01") ||
+			 (dateArray[i].slice(0,2) == "20" && dateArray[i].slice(5,7) == "01")) {
+			var year = Number(dateArray[i].slice(0,4))
+			if (year >= minYear && year <= maxYear) { 
+				var yearIndex = year - minYear;
+				var dayIndex = Number(dateArray[i].slice(8,10)) - 1
+				janMinTempArray[yearIndex][dayIndex] = minTempArray[i];
+			}
+		}
+		
+	}
+	
+
+return janMinTempArray;
+}
+
+///////////
+function getAvg(janMinTempArray)
+{
+	var janAvg = []
+	for (var i=0; i < janMinTempArray.length; i++){
+		janAvg[i] = d3.mean(janMinTempArray[i])
+		if(isNaN(janAvg[i])) {
+			janAvg[i]=[]
+		}
+	}
+return janAvg;
+}
+///////////
+
+///////////
+
+/////////////////////////////////////////
+async function loadData(anchorageCSV,bethelCSV,fairbanksCSV,helmutCSV,juneauCSV,nomeCSV,salmonCSV,umiatCSV)
+{
+	anchorageMinTemp = await getMinTempArray(anchorageCSV);
+	anchorageDate = await getDateArray(anchorageCSV);
+
+	bethelMinTemp = await getMinTempArray(bethelCSV);
+	bethelDate = await getDateArray(bethelCSV);
+
+	fairbanksMinTemp = await getMinTempArray(fairbanksCSV);
+	fairbanksDate = await getDateArray(fairbanksCSV);
+
+	helmutMinTemp = await getMinTempArray(helmutCSV);
+	helmutDate = await getDateArray(helmutCSV);
+
+	juneauMinTemp = await getMinTempArray(juneauCSV);
+	juneauDate = await getDateArray(juneauCSV);
+
+	nomeMinTemp = await getMinTempArray(nomeCSV);
+	nomeDate = await getDateArray(nomeCSV);
+
+	salmonMinTemp = await getMinTempArray(salmonCSV);
+	salmonDate = await getDateArray(salmonCSV);
+
+	umiatMinTemp = await getMinTempArray(umiatCSV);
+	umiatDate = await getDateArray(umiatCSV);
+
+/////////////////////////////
+
+	let anchorageAvgs = await getJanuaryAverages(anchorageMinTemp,anchorageDate)
+	let bethelAvgs = await getJanuaryAverages(bethelMinTemp,bethelDate)
+	let fairbanksAvgs = await getJanuaryAverages(fairbanksMinTemp,fairbanksDate)
+	let helmutAvgs = await getJanuaryAverages(helmutMinTemp,helmutDate)
+	let juneauAvgs = await getJanuaryAverages(juneauMinTemp,juneauDate)
+	let nomeAvgs = await getJanuaryAverages(nomeMinTemp,nomeDate)
+	let salmonAvgs = await getJanuaryAverages(salmonMinTemp,salmonDate)
+	let umiatAvgs = await getJanuaryAverages(umiatMinTemp,umiatDate)
+
+	//returns yearly january average for each site
+	let avgs = await [getAvg(anchorageAvgs),getAvg(bethelAvgs),getAvg(fairbanksAvgs),getAvg(helmutAvgs),getAvg(juneauAvgs),
+getAvg(nomeAvgs),getAvg(salmonAvgs),getAvg(umiatAvgs)]
+	return avgs
+}
+//need to take one average to get the average per year, then another average for overall
+
+async function getOverallAvg(yearlyAvgs)
+{
+	var overallAvgs = []
+
+	for (var i=0;i<yearlyAvgs.length;i++)
+	{
+	var yearSum = 0
+	var yearCount = 0
+		for(var j=0; j<yearlyAvgs[i].length;j++)
+		{
+		if(yearlyAvgs[i][j].length != 0)
+		{
+			yearSum = yearSum + yearlyAvgs[i][j];
+			yearCount++;
+		}
+		}
+
+	overallAvgs[i] = yearSum/yearCount;
+	}
+	
+	return overallAvgs
+}
+
+
+async function createData()
+{
+
+
+let yearlyAvgs = await loadData(anchorageCSV,bethelCSV,fairbanksCSV,helmutCSV,juneauCSV,nomeCSV,salmonCSV,umiatCSV);
+console.log(yearlyAvgs)
+let overallAvgs = await getOverallAvg(yearlyAvgs)
+console.log(overallAvgs)
+
+latitudes = [anchorageLatLon[0],bethelLatLon[0],fairbanksLatLon[0],helmutLatLon[0],juneauLatLon[0],
+nomeLatLon[0],salmonLatLon[0],umiatLatLon[0]];
+longitudes = [anchorageLatLon[1],bethelLatLon[1],fairbanksLatLon[1],helmutLatLon[1],juneauLatLon[1],
+nomeLatLon[1],salmonLatLon[1],umiatLatLon[1]];
+
+var data = [];
+for(var i=0;i < latitudes.length;i++)
+{
+	data.push({"Location": ticklabels[i], "Latitude": latitudes[i], "Longitude": longitudes[i], "Temperature": overallAvgs[i]});
+}
+return data
+}
+
+
+var ticklabels = ['Anchorage','Bethel','Fairbanks','Helmut Mtn.','Juneau','Nome','Salmon Trout','Umiat'];
+
+///////////////////////
+async function plot1()
+{
+
+let data = await createData();
+
+
+
+xdomain = [0, data.length]; // degrees fahrenheit
+xrange = [000,width]; //pixels
+
+var xs = d3.scaleBand().domain([0,1,2,3,4,5,6,7]).range(xrange);
+
+var ys = d3.scaleLinear().domain([40, -40]).range([0, height-marginy]);
+
+d3.select("svg").selectAll("circle").remove()
+d3.select("svg").selectAll("text.note").remove()
+d3.select("svg").selectAll("text.xAxisLabel").remove()
+d3.select("svg").selectAll("path").remove()
+d3.select("svg").selectAll("g.legend").remove()
+
+d3.select("svg").selectAll("g.xaxis").remove()
+d3.select("svg").selectAll("g.yaxis").remove()
+
+//final plot 1
+d3.select("svg").selectAll("rect").data(data).join("rect").transition().duration(1000)
+.attr("x",function(d,i) {return marginx+xs(i);})
+.attr("y",marginy)
+.attr("width",xs.bandwidth())
+.attr("fill", function(d,i) {return color[i];})
+.transition().duration(1000).ease(d3.easeLinear)
+.attr("height",function(d,i) {return ys(d.Temperature);});
+
+
+var format = d3.format(".1f")
+d3.select("svg").selectAll("text").exit().data(data).join("text").attr("class","barValues")
+	.attr("x", function(d,i) {return marginx+xs(i)+xs.bandwidth()/2;})             
+        .attr("y", function(d,i) {return ys(d.Temperature)+marginy+20;})
+	.transition().delay(2000).ease(d3.easeLinear)
+        .attr("x", function(d,i) {return marginx+xs(i)+xs.bandwidth()/2;})             
+        .attr("y", function(d,i) {return ys(d.Temperature)+marginy+20;})
+        .attr("text-anchor", "middle")  
+        .style("font-size", "14px") 
+        .text(function(d) {return format(d.Temperature)+"°";})
+
+
+const umiatAnnotation = [{note: {label: "Notice the extreme temperature difference between warmest and coldest weather Stations, almost 50°F!"},
+x: marginx+xs(7)+xs.bandwidth()/2-20,
+y: ys(data[7].Temperature)+marginy+16,
+dy: 0,
+dx: -150}]
+
+const juneauAnnotation = [{note: {label: ""},
+x: marginx+xs(4)+xs.bandwidth()/2,
+y: ys(data[4].Temperature)+marginy+30,
+dy: 275,
+dx: 65}]
+
+if (plotNumber == 1){
+const makeAnnotations = d3.annotation().annotations(umiatAnnotation)
+const makeAnnotations2 = d3.annotation().annotations(juneauAnnotation)
+d3.select("svg").append("g").call(makeAnnotations)
+d3.select("svg").append("g").call(makeAnnotations2)
+}
+
+var ticks = [xs];
+var ticklabels = ['Anchorage','Bethel','Fairbanks','Helmut Mtn.','Juneau','Nome','Salmon Trout','Umiat'];
+
+var xAxis = d3.axisTop().scale(xs).ticks(xs.length).tickFormat(function(d,i) {return ticklabels[i];});
+var yAxis = d3.axisLeft().scale(ys).ticks(6);
+
+
+d3.select("svg").append("g").call(xAxis).attr("class","xaxis")
+.attr("transform","translate("+marginx+","+marginy+")") //move the axis itself
+.selectAll("text").style("text-anchor","start") //grab the labels
+.attr("dx", "0.5em").attr("dy", "0.2em") // move the labels slightly
+.attr("transform","rotate(-40)").style("font-size","14px"); //rotate the labels
+
+d3.select("svg").append("g").call(yAxis).attr("class","yaxis")
+.attr("transform","translate("+marginx+","+marginy+")")
+
+d3.select("svg").append("text").attr("class","ylabel")
+        .attr("y", marginx-50)
+	.attr("x",-(height/2-marginy-125))         
+        .attr("dy", "1em")
+	.attr("dx","-16.5em")
+        .text("Temperature (° Fahrenheit)")
+        .attr("text-anchor", "middle")  
+	.attr("transform","rotate(-90)")
+        .style("font-size", "16px") ;
+
+	d3.selectAll("text.title")
+        .text("Avg. Daily Minimum Temperature in January (" + minYear + "-" + maxYear + ")");
+
+
+;
+
+}
+
+mapPlot()
+
+async function nextSlide()
+{
+	plotNumber++;
+	plotHandler()
+}
+
+async function plotHandler()
+{
+	d3.select("g.annotation").remove()
+	d3.selectAll("text.barValues").remove()
+
+	if(plotNumber == 0){
+		mapPlot()
+	}
+	else if(plotNumber == 1){
+		plot1()
+	}
+	else if(plotNumber == 2){
+		plot2();
+	}
+	else if(plotNumber == 3){
+		plot3();
+	}
+	else if(plotNumber == 4){
+		mapPlot();
+	}
+	else if(plotNumber == 5){
+		plot1();
+	}
+	else if(plotNumber == 6){
+		plot3();
+	}
+}
+
+
+///////////////////////////////////////
+async function plot2()
+{
+let yearlyAvgs = await loadData(anchorageCSV,bethelCSV,fairbanksCSV,helmutCSV,juneauCSV,nomeCSV,salmonCSV,umiatCSV);
+var parseTime = d3.timeParse("%Y");
+var location = ['Anchorage','Bethel','Fairbanks','Helmut Mtn.','Juneau','Nome','Salmon Trout','Umiat'];
+
+	d3.select("svg").selectAll("circle").remove()
+	d3.select("svg").selectAll("text.note").remove()
+	d3.select("svg").selectAll("text.xAxisLabel").remove()
+	d3.select("svg").selectAll("path").remove()
+	d3.select("svg").selectAll("g.legend").remove()
+	d3.selectAll("g.xaxis").style("opacity",1)
+	d3.selectAll("g.yaxis").style("opacity",1)
+	
+
+	var data = [];
+	var year = [];
+	for (var i=0; i<yearlyAvgs.length;i++)
+	{
+		
+		for(var j=0; j<yearlyAvgs[i].length;j++)
+		{
+		year=minYear + j;
+		if(yearlyAvgs[i][j].length != 0)
+		{
+			data.push({"Year": year, "Temperature": yearlyAvgs[i][j], "Location": location[i]});
+		}
+		}
+	}
+
+
+	var xs2 = d3.scaleLinear().domain([minYear,maxYear]).range(xrange);
+	var xAxis2 = d3.axisBottom().scale(xs2).ticks(9).tickFormat(d3.format("d"));
+
+	var ys2 = d3.scaleLinear().domain([40, -40]).range([0, height-marginy]);
+	var yAxis2 = d3.axisLeft().scale(ys2).ticks(9)
+
+	d3.selectAll("rect").remove()
+	d3.selectAll("circle").remove()
+	d3.selectAll("path").remove()
+	d3.selectAll("tooltip").remove()
+
+	var sumstat = d3.nest()
+	.key(d => d.Location)
+	.entries(data)
+	
+d3.select("svg").selectAll("rect").data(data).join("rect").transition().duration(1000)
+	d3.select("svg")
+    	.selectAll("path")
+	.append("g")
+	.exit()
+    	.data(sumstat)
+    	.join("path")
+	.attr("d",function(d) {
+	 return d3.line()
+	.x(d=> (marginx + xs2(d.Year)))
+	.y(d=> (marginy + ys2(d.Temperature)))
+	(d.values)
+	}
+	)
+	   .attr("fill", "none")
+    .attr("stroke", function(d,i) {return color[i];})
+    .attr("stroke-width", 2)
+    .attr("id", "LinePlot")
+
+
+	d3.selectAll("g.xaxis").transition().duration(1000).call(xAxis2)
+	.attr("transform","translate("+marginx+","+marginy+")") //move the axis itself
+	.selectAll("text").style("text-anchor","start") //grab the labels
+	.attr("dx", "0.3em").attr("dy", "-0.7em") // move the labels slightly
+	.attr("transform","rotate(-60)").style("font-size","14px"); //rotate the labels
+
+	d3.selectAll("g.yaxis").transition().duration(1000).call(yAxis2)
+	.attr("transform","translate("+marginx+","+marginy+")") //move the axis itself
+
+	d3.selectAll("text.title").transition().duration(1000)
+        .text("Historical Daily Min. Temperature in January(" + minYear + "-" + maxYear + ")");
+
+	var legend = d3.select("svg")
+	.selectAll("g.legend")
+	.data(sumstat).enter().append("g")
+	.attr("class","legend");
+
+	var legendx = width+marginx+15;
+	var legendy = marginy+height/5;
+
+	legend.append("rect")
+	.attr("x",legendx)
+	.attr("y",function(d,i) {return i*20 + legendy;})
+	.attr("width",20)
+	.attr("height",3)
+	.attr("fill", function(d,i) {return color[i];})
+
+	legend.append("text")
+	.attr("x",legendx + 25)
+	.attr("y",function(d,i) {return i*20 + legendy+7;})
+	.text(function(d,i) {return location[i];}) 
+
+	mapBtn.style.left = width + marginx + 160+'px';
+	mapTxt.style.left = width + marginx + 180+'px';
+	opBtn.style.left = width + marginx + 160+'px';
+	opTxt.style.left = width + marginx + 180+'px';
+	ltBtn.style.left = width + marginx + 160+'px';
+	ltTxt.style.left = width + marginx + 180+'px';
+	thBtn.style.left = width + marginx + 160+'px';
+	thTxt.style.left = width + marginx + 180+'px';
+	radioBtn.style.left = width + marginx + 160+'px';
+
+	d3.select("svg").append("text").attr("class","xAxisLabel")
+        .attr("x", width/2+marginx)             
+        .attr("y", marginy/2)
+        .attr("text-anchor", "middle")  
+        .style("font-size", "16px") 
+        .text("Year");
+
+}
+
+d3.select("#startYear").on("input",function() {
+
+	minYear = +this.value;
+	d3.select("g.annotation").remove()
+	if(plotNumber == 3)
+	{plotNumber = 6}
+	plotHandler();
+});
+
+d3.select("#endYear").attr("transform","translate("+(marginx+width/3)+","+(marginy+height+20)+")").on("input",function() {
+
+	maxYear = +this.value;
+	d3.selectAll("g.annotation").remove()
+	if(plotNumber == 3)
+	{plotNumber = 6}
+	plotHandler();
+});
+
+async function plot3()
+{
+	nextButtonOn.style.display = "none";
+
+
+	mapBtn.style.display = "block";
+	mapBtn.style.position = "absolute";
+	mapBtn.style.width = 20;
+	mapBtn.style.left = width + marginx + 30+'px';
+	mapBtn.style.top = (height + marginy)/2 + 'px';
+	mapTxt.style.display = "block";
+	mapTxt.style.position = "absolute";
+	mapTxt.style.width = 20;
+	mapTxt.style.left = width + marginx + 50+'px';
+	mapTxt.style.top = (height + marginy)/2 + 'px';
+
+	opBtn.style.display = "block";
+	opBtn.style.position = "absolute";
+	opBtn.style.width = 20;
+	opBtn.style.left = width + marginx + 30+'px';
+	opBtn.style.top = (height + marginy)/2  + 30 + 'px';
+	opTxt.style.display = "block";
+	opTxt.style.position = "absolute";
+	opTxt.style.width = 20;
+	opTxt.style.left = width + marginx + 50+'px';
+	opTxt.style.top = (height + marginy)/2 + 30 + 'px';
+
+	thBtn.style.display = "block";
+	thBtn.style.position = "absolute";
+	thBtn.style.width = 20;
+	thBtn.style.left = width + marginx + 30+'px';
+	thBtn.style.top = (height + marginy)/2  + 60+ 'px';
+	thTxt.style.display = "block";
+	thTxt.style.position = "absolute";
+	thTxt.style.width = 20;
+	thTxt.style.left = width + marginx + 50+'px';
+	thTxt.style.top = (height + marginy)/2  + 60 + 'px';
+
+	ltBtn.style.display = "block";	
+	ltBtn.style.position = "absolute";
+	ltBtn.style.width = 20;
+	ltBtn.style.left = width + marginx + 30+'px';
+	ltBtn.style.top = (height + marginy)/2  + 90 + 'px';
+	ltTxt.style.display = "block";
+	ltTxt.style.position = "absolute";
+	ltTxt.style.width = 20;
+	ltTxt.style.left = width + marginx + 50+'px';
+	ltTxt.style.top = (height + marginy)/2  + 90 + 'px';
+	ltBtn.checked = true;
+
+	radioBtn.style.display = "block";	
+	radioBtn.style.position = "absolute";
+	radioBtn.style.width = 20;
+	radioBtn.style.left = width + marginx + 30+'px';
+	radioBtn.style.top = (height + marginy)/2  + 120 + 'px';
+
+	dataRangeText = document.getElementById('dataRangeLabel');
+	dataRangeText.style.display = "block";
+	dataRangeText.style.position = "absolute";
+	dataRangeText.style.width = 20;
+	dataRangeText.style.left = width/2+'px';
+	dataRangeText.style.top = height + marginy/1.5 - 20 + 100 +'px';
+
+	startYearBox = document.getElementById('startYear');
+	startYearBox.style.display = "block";
+	startYearBox.style.position = "absolute";
+	startYearBox.style.width = 20;
+	startYearBox.style.left = width/2+'px';
+	startYearBox.style.top = height + marginy/1.5 + 100 +'px';
+
+	startYearText = document.getElementById('startYearLabel');
+	startYearText.style.display = "block"
+	startYearText.style.position = "absolute";
+	startYearText.style.left = width/2-72+'px';
+	startYearText.style.top = height + marginy/1.5 + 100 +'px';
+
+	endYearBox = document.getElementById('endYear');
+	endYearBox.style.display = "block";
+	endYearBox.style.position = "absolute";
+	endYearBox.style.width = 20;
+	endYearBox.style.left = width/2+175+'px';
+	endYearBox.style.top = height + marginy/1.5 + 100 +'px';
+
+	endYearText = document.getElementById('endYearLabel');
+	endYearText.style.display = "block"
+	endYearText.style.position = "absolute";
+	endYearText.style.left = width/2+110+'px';
+	endYearText.style.top = height + marginy/1.5 + 100 +'px';
+	
+	d3.selectAll("g.xaxis").style("opacity",1)
+	d3.selectAll("g.yaxis").style("opacity",1)
+	d3.selectAll("text.xAxisLabel").remove()
+	d3.selectAll("text.note").remove()
+
+	let data = await createData()
+	var xs3 = d3.scaleLinear().domain([57, 70]).range(xrange);
+	var xAxis3 = d3.axisBottom().scale(xs3).ticks(7);
+
+	var ys3 = d3.scaleLinear().domain([40, -40]).range([0, height-marginy]);
+	var yAxis3 = d3.axisLeft().scale(ys3).ticks(9)
+
+	d3.selectAll("g.legend").remove()
+	d3.selectAll("#LinePlot").remove()	
+
+
+	var dots = await d3.select("svg").selectAll("rect").data(data).join("rect")
+	.attr("width",10)
+	.attr("height",10);
+
+	dots.transition().duration(1000)
+	.attr("x",function(d,i) {return marginx +xs3(d.Latitude);})
+	.attr("y",function(d,i) {return marginy +ys3(d.Temperature);})
+	.attr("fill", function(d,i) {return color[i];})
+	
+
+
+
+	d3.selectAll("g.xaxis").transition().duration(1000).call(xAxis3)
+	.attr("transform","translate("+marginx+","+(height)+")") //move the axis itself
+	.selectAll("text").style("text-anchor","start") //grab the labels
+	.attr("dx", "0.3em").attr("dy", "-0.7em") // move the labels slightly
+	.attr("transform","rotate(-60)").style("font-size","14px"); //rotate the labels
+
+	d3.selectAll("g.yaxis").transition().duration(1000).call(yAxis3)
+	.attr("transform","translate("+marginx+","+marginy+")").attr("fill-opacity",1) //move the axis itself
+
+
+	d3.select("svg").append("text").attr("class","xAxisLabel")
+        .attr("x", (width/2)+100)             
+        .attr("y", marginy/5+height)
+        .attr("text-anchor", "middle")  
+        .style("font-size", "16px") 
+        .text("Latitude of Weather Station (Degrees)");
+
+
+	d3.selectAll("text.title").transition().duration(1000)
+        .text("Effect of Latitude on Temperature (" + minYear + "-" + maxYear + ")");
+	var tooltip = d3.select("#tooltip")
+	
+
+	var dotsInvis = await d3.select("svg").selectAll("circle").data(data).join("circle")
+	.attr("r",25)
+	.attr("cx",function(d,i) {return marginx +xs3(d.Latitude);})
+	.attr("cy",function(d,i) {return marginy +ys3(d.Temperature);})
+	.attr("fill", "lightblue")
+	.attr("fill-opacity",0)
+	
+
+var plotTooltip = d3.select('#tooltip').append("div")
+var format = d3.format(".1f")
+dotsInvis.on("mouseover", 
+	function(d,i) {
+	plotTooltip
+	.style("position","absolute")
+	.style("visibility","visible")
+	.style("opacity",1)
+	.style("top",d3.event.pageY+"px")
+	.style("left",d3.event.pageX+"px")
+	.style("position","absolute")
+	.style("width",150+"px")
+	.style("background-color", "white")
+    	.style("border", "solid")
+    	.style("border-width", "1px")
+    	.style("border-radius", "5px")
+    	.style("padding", "10px")
+	.html("Site: " + d.Location +  "<br>Latitude: " + d.Latitude + "°" + "<br>Temperature: " + format(d.Temperature) + "°F");
+	})
+
+dotsInvis.on("mouseout",(d) => plotTooltip.style("opacity",0))
+console.log(marginx + xs3(data[1].Latitude))
+console.log( marginy + ys3(data[1].Temperature))
+
+if (plotNumber == 3){
+const latAnnotation1 = [{note: {label: "Stations along the coast tend to stay warmer than those that are inland."},
+x: marginx + xs3(data[0].Latitude),
+y: marginy + ys3(data[0].Temperature),
+dy: -150,
+dx: 50}]
+
+const latAnnotation2 = [{note: {},
+x: marginx + xs3(data[4].Latitude),
+y: marginy + ys3(data[4].Temperature),
+dy: -75,
+dx: 245}]
+
+const latAnnotation3 = [{note: {},
+x: marginx + xs3(data[5].Latitude),
+y: marginy + ys3(data[5].Temperature),
+dy: -230,
+dx: -180}]
+
+
+
+const makeAnnotations1 = d3.annotation().annotations(latAnnotation1)
+const makeAnnotations2 = d3.annotation().annotations(latAnnotation2)
+const makeAnnotations3 = d3.annotation().annotations(latAnnotation3)
+
+d3.select("svg").append("g").call(makeAnnotations1)
+d3.select("svg").append("g").call(makeAnnotations2)
+d3.select("svg").append("g").call(makeAnnotations3)
+}
+
+}
+
+
+
+</script>
+</body>
+</html>
